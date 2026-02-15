@@ -1,8 +1,10 @@
 #include "lessonview.h"
+#include "mergedhorizontalheader.h"
 #include "ui_lessonview.h"
 #include "start_lesson.h"
 #include "QSqlError"
 #include "aboutlesson.h"
+#include "mergedheader.h"
 
 #include <QPainter>
 #include <QPdfWriter>
@@ -16,6 +18,7 @@
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QPrintDialog>
+#include <QCloseEvent>
 
 LessonView::LessonView(QWidget *parent)
     : QMainWindow(parent)
@@ -23,7 +26,7 @@ LessonView::LessonView(QWidget *parent)
 {
     ui->setupUi(this);
 
-    ui->tableWidget->setColumnCount(7);
+    ui->tableWidget->setColumnCount(13);
     ui->tableWidget->setRowCount(14);
 
     for(int i = 0; i<ui->tableWidget->rowCount(); i++)
@@ -40,58 +43,23 @@ LessonView::LessonView(QWidget *parent)
     ui->tableWidget->verticalHeader()->setVisible(false);
     ui->tableWidget->horizontalHeader()->setVisible(false);
 
-    ui->tableWidget->setSpan(1, 0, 2, 1);
-    QTableWidgetItem *item = new QTableWidgetItem("8.30-10.05");
-    item->setTextAlignment(Qt::AlignCenter);
-    ui->tableWidget->setItem(1, 0, item);
-
-    ui->tableWidget->setSpan(3, 0, 2, 1);
-    QTableWidgetItem *item2 = new QTableWidgetItem("10.25-12.00");
-    item2->setTextAlignment(Qt::AlignCenter);
-    ui->tableWidget->setItem(3, 0, item2);
-
-    ui->tableWidget->setSpan(5, 0, 2, 1);
-    QTableWidgetItem *item3 = new QTableWidgetItem("12.30-14.05");
-    item3->setTextAlignment(Qt::AlignCenter);
-    ui->tableWidget->setItem(5, 0, item3);
-
-    ui->tableWidget->setSpan(7, 0, 2, 1);
-    QTableWidgetItem *item4 = new QTableWidgetItem("14.20-15.55");
-    item4->setTextAlignment(Qt::AlignCenter);
-    ui->tableWidget->setItem(7, 0, item4);
-
-    ui->tableWidget->setSpan(9, 0, 2, 1);
-    QTableWidgetItem *item5 = new QTableWidgetItem("16.05-17.40");
-    item5->setTextAlignment(Qt::AlignCenter);
-    ui->tableWidget->setItem(9, 0, item5);
-
-    ui->tableWidget->setSpan(11, 0, 2, 1);
-    QTableWidgetItem *item6 = new QTableWidgetItem("17.50-19.25");
-    item6->setTextAlignment(Qt::AlignCenter);
-    ui->tableWidget->setItem(11, 0, item6);
-
-    ui->tableWidget->setSpan(13, 0, 2, 1);
-    QTableWidgetItem *item7 = new QTableWidgetItem("19.35-21.10");
-    item7->setTextAlignment(Qt::AlignCenter);
-    ui->tableWidget->setItem(13, 0, item7);
-
     ui->tableWidget->item(0,1)->setText("Понедельник");
     ui->tableWidget->item(0,1)->setTextAlignment(Qt::AlignCenter);
 
-    ui->tableWidget->item(0,2)->setText("Вторник");
-    ui->tableWidget->item(0,2)->setTextAlignment(Qt::AlignCenter);
-
-    ui->tableWidget->item(0,3)->setText("Среда");
+    ui->tableWidget->item(0,3)->setText("Вторник");
     ui->tableWidget->item(0,3)->setTextAlignment(Qt::AlignCenter);
 
-    ui->tableWidget->item(0,4)->setText("Четверг");
-    ui->tableWidget->item(0,4)->setTextAlignment(Qt::AlignCenter);
-
-    ui->tableWidget->item(0,5)->setText("Пятница");
+    ui->tableWidget->item(0,5)->setText("Среда");
     ui->tableWidget->item(0,5)->setTextAlignment(Qt::AlignCenter);
 
-    ui->tableWidget->item(0,6)->setText("Суббота");
-    ui->tableWidget->item(0,6)->setTextAlignment(Qt::AlignCenter);
+    ui->tableWidget->item(0,7)->setText("Четверг");
+    ui->tableWidget->item(0,7)->setTextAlignment(Qt::AlignCenter);
+
+    ui->tableWidget->item(0,9)->setText("Пятница");
+    ui->tableWidget->item(0,9)->setTextAlignment(Qt::AlignCenter);
+
+    ui->tableWidget->item(0,11)->setText("Суббота");
+    ui->tableWidget->item(0,11)->setTextAlignment(Qt::AlignCenter);
 
     // Запрет редактирования ячеек в конкретной строке
     int rowToDisable = 0;
@@ -122,15 +90,17 @@ LessonView::LessonView(QWidget *parent)
     // Настройка для отображения многстрочного текста
     ui->tableWidget->item(1,1)->setTextAlignment(Qt::AlignCenter);
     ui->tableWidget->resizeRowsToContents();
+    ui->tableWidget->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents); // альтернативно
 
-    QFontMetrics metrics(item->font());
-    int textHeight = metrics.height() * 4; // высота текста для 3 строк
-    ui->tableWidget->setRowHeight(1, textHeight);
 
-    connect(ui->tableWidget, &QTableWidget::cellClicked, this, &LessonView::ClickedLeftButton);
+    // QFontMetrics metrics(item->font());
+    // int textHeight = metrics.height() * 4; // высота текста для 3 строк
+    // ui->tableWidget->setRowHeight(1, textHeight);
+
+    connect(ui->tableWidget, &QTableWidget::cellDoubleClicked, this, &LessonView::ClickedLeftButton);
 
     QSqlDatabase db;
-    if (!connectToDatabase(db, "/home/elf/Programs/lesson/LessonView/lesson_base.db"))
+    if (!connectToDatabase(db, "/home/elf/lesson/LessonView/lesson_base.db"))
         return;
 
     // Предположим, у вас есть указатель на QTableWidget в UI
@@ -140,27 +110,104 @@ LessonView::LessonView(QWidget *parent)
     table = ui->tableWidget;  // например, связанный с ui
     str = "какой-то текст";        // или получение значения из другого места
 
-    connect(ui->action_7, &QAction::triggered, this, [=](){
+    // Заменим horizontalHeader на наш кастомный
+    MergedHeader *hdr = new MergedHeader(Qt::Horizontal, table);
+    table->setHorizontalHeader(hdr);
+
+    // если хотите заменить вертикальный заголовок (строки)
+    MergedHorizontalHeader *vh = new MergedHorizontalHeader(Qt::Vertical, table);
+    table->setVerticalHeader(vh);
+
+    // Установим ширины секций, чтобы пример выглядел аккуратно
+    for (int c = 0; c < 4; ++c)
+        table->setColumnWidth(c, 100);
+
+    connect(ui->lessonPrint, &QAction::triggered, this, [=](){
         printLessonDialog();
     });
 
-    connect(ui->action_8, &QAction::triggered, this, [=](){
+    connect(ui->lessonPrintPreview, &QAction::triggered, this, [=](){
         showPrintPreview(parent, table, str);
     });
 
-    ui->action_10->setCheckable(true);
+    ui->lessonLock->setCheckable(true);
 
-    connect(ui->action_9, &QAction::triggered, this, &LessonView::newLesson);
-    connect(ui->action_6, &QAction::triggered, this, &LessonView::saveLesson);
-    connect(ui->action_5, &QAction::triggered, this, &LessonView::aboutLessons);
-    connect(ui->action_10, &QAction::triggered, this, &LessonView::notEditTable);
+    connect(ui->lessonNew, &QAction::triggered, this, &LessonView::newLesson);
+    connect(ui->lessonSave, &QAction::triggered, this, &LessonView::saveLesson);
+    connect(ui->lessonAbout, &QAction::triggered, this, &LessonView::aboutLessons);
+    connect(ui->lessonLock, &QAction::triggered, this, &LessonView::notEditTable);
+    connect(ui->tableWidget, &QTableWidget::itemChanged, this, &LessonView::onItemChanged);
+    connect(ui->lessonOpen, &QAction::triggered, this, &LessonView::openLesson);
+    connect(ui->lessonClose, &QAction::triggered, this, &LessonView::close);
+    connect(ui->deleteLesson, &QAction::triggered, this, &LessonView::deleteLesson);
 
     ui->tableWidget->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    setWindowTitle("Программатор нагрузки");
 }
 
 LessonView::~LessonView()
 {
     delete ui;
+}
+
+void LessonView::deleteLesson()
+{
+    int row = table->currentRow();
+    int column = table->currentColumn();
+    if (row < 0 || column < 0) return;
+    if (auto *it = table->item(row, column))
+    {
+        it->setText(QString());
+    }
+}
+
+void LessonView::openLesson()
+{
+    QString filter = tr("Текстовые файлы (*.txt);;Все файлы (*)");
+    QString fileName = QFileDialog::getOpenFileName(this, tr("Открыть файл"), QString(), filter);
+    if (fileName.isEmpty()) return;
+
+   // openFile(fileName);
+}
+
+void LessonView::closeEvent (QCloseEvent *event)
+{
+    if (!isModified)
+    {
+        event->accept();
+        return;
+    }
+
+    QMessageBox::StandardButton ret = QMessageBox::warning(this, tr("Сохранить изменения?"),
+                                                           tr("Данные таблицы были изменены. Сохранить перед выходом?"),
+                                                           QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
+                                                           QMessageBox::Save);
+
+    if (ret == QMessageBox::Save)
+    {
+        if (saveLesson())
+        {
+            event->accept();
+        }
+        else
+        {
+            event->ignore();
+        }
+    }
+    else if (ret == QMessageBox::Discard)
+    {
+        event->accept();
+    }
+    else
+    {
+        event->ignore();
+    }
+}
+
+void LessonView::onItemChanged()
+{
+    setWindowTitle("Программатор нагрузки" + QString("*"));
+    isModified = true;
 }
 
 void LessonView::notEditTable(bool checked)
@@ -175,7 +222,6 @@ void LessonView::notEditTable(bool checked)
         table->clearSelection(); // Снимаем выделение
     }
 }
-
 
 void LessonView::printLessonDialog()
 {
@@ -213,16 +259,6 @@ void LessonView::printLessonDialog()
     }
 }
 
-
-    // QString filename = QFileDialog::getSaveFileName(nullptr, "Сохранить как", QString(), "PDF-файлы (*.pdf)");
-
-    // if (!filename.isEmpty()) {
-    //     print_lesson(table, filename);  // Вызываем функцию для сохранения данных в PDF
-    // } else {
-    //     qDebug() << "Сохранение отменено";
-    // }
-
-
 void LessonView::aboutLessons()
 {
     QScreen *screen = QGuiApplication::primaryScreen();
@@ -238,14 +274,14 @@ void LessonView::aboutLessons()
     rsc3->exec();
 }
 
-void LessonView::saveLesson()
+bool LessonView::saveLesson()
 {
     QSqlDatabase db = QSqlDatabase::database("connection1");
 
     if (!db.isOpen())
     {
         QMessageBox::critical(nullptr, "Ошибка", "База данных не открыта");
-        return;
+        return false;
     }
 
     for (int row = 0; row < ui->tableWidget->rowCount(); ++row)
@@ -260,7 +296,8 @@ void LessonView::saveLesson()
                 QString text = item->text().trimmed();
 
                 // Если ячейка пуста — ничего не делаем
-                if (text.isEmpty()) {
+                if (text.isEmpty())
+                {
                     continue;
                 }
 
@@ -280,15 +317,17 @@ void LessonView::saveLesson()
                     // Иначе считаем, что внутри 3 строки (отображение)
                     // Пытаемся разбить по переносам
                     QStringList parts = text.split("\n");
-                    QString part1, part2, part3;
+                    QString part1, part2, part3, part4;
 
                     // Получаем каждую из трех частей, если есть
                     part1 = parts.size() > 0 ? parts.at(0) : "";
                     part2 = parts.size() > 1 ? parts.at(1) : "";
                     part3 = parts.size() > 2 ? parts.at(2) : "";
+                    part4 = parts.size() > 3 ? parts.at(3) : "";
+
 
                     // Склеиваем через \n
-                    combinedText = part1 + "\\n" + part2 + "\\n" + part3;
+                    combinedText = part1 + "\\n" + part2 + "\\n" + part3 + "\\n" + part4;
                 }
 
                 //qDebug() << combinedText;
@@ -344,6 +383,12 @@ void LessonView::saveLesson()
 
     QMessageBox::information(nullptr, "Успех", "Данные успешно сохранены");
 
+    isModified = false;
+    // убираем звёздочку
+    QString t = windowTitle();
+    if (t.endsWith("*")) t.chop(1);
+    setWindowTitle(t);
+    return true;
 }
 
 void LessonView::newLesson()
@@ -360,44 +405,69 @@ void LessonView::newLesson()
 
     //rsc->wf = this;
     rsc2->exec();
-
-
 }
 
 void LessonView::ClickedLeftButton(int row, int column)
 {
+    // if (editingEnabled)
+    // {
+    //     return; // Преждевременный выход, если редактирование запрещено
+    // }
+    // else
+    // {
+    //     QScreen *screen = QGuiApplication::primaryScreen();
+    //     rsc = new Add_lesson(this);
+    //     rsc->setWindowTitle("Введите данные для ячейки");
+    //     rsc->setGeometry(
+    //         QStyle::alignedRect(
+    //             Qt::LeftToRight,
+    //             Qt::AlignCenter,
+    //             rsc->size(),
+    //             screen->geometry()));
+
+    //     rsc->exec();
+
+    //     QString combinedText = rsc->text11 + "\n" + rsc->text22 + "\n" + rsc->text33 + "\n" + rsc->text44;
+    //     ui->tableWidget->item(row, column)->setText(combinedText);
+
+    //     // Проверяем существование ячейки
+    //     if (!ui->tableWidget->item(row, column))
+    //         ui->tableWidget->setItem(row, column, new QTableWidgetItem());
+
+    //     auto item = ui->tableWidget->item(row, column);
+    //     item->setText(combinedText);
+    //     item->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter); // центрирование по горизонтали и вертикали
+    //     ui->tableWidget->resizeRowsToContents();
+
+    //     rsc->deleteLater(); // Удаляем диалог после закрытия
+    //}
     if (editingEnabled)
-    {
-        return; // Преждевременный выход, если редактирование запрещено
-    }
-    else
-    {
-        QScreen *screen = QGuiApplication::primaryScreen();
-        rsc = new Add_lesson(this);
-        rsc->setWindowTitle("Введите данные для ячейки");
-        rsc->setGeometry(
-            QStyle::alignedRect(
-                Qt::LeftToRight,
-                Qt::AlignCenter,
-                rsc->size(),
-                screen->geometry()));
+        return;
 
-        rsc->exec();
+    QScreen *screen = QGuiApplication::primaryScreen();
+    rsc = new Add_lesson(this);
+    rsc->setWindowTitle("Введите данные для ячейки");
+    rsc->setGeometry(
+        QStyle::alignedRect(
+            Qt::LeftToRight,
+            Qt::AlignCenter,
+            rsc->size(),
+            screen->geometry()));
 
-        QString combinedText = rsc->text11 + "\n" + rsc->text22 + "\n" + rsc->text33;
-        ui->tableWidget->item(row, column)->setText(combinedText);
+    // Выполняем диалог и проверяем результат
+    if (rsc->exec() == QDialog::Accepted) {
+        QString combinedText = rsc->text11 + "\n" + rsc->text22 + "\n" + rsc->text33 + "\n" + rsc->text44;
 
-        // Проверяем существование ячейки
         if (!ui->tableWidget->item(row, column))
             ui->tableWidget->setItem(row, column, new QTableWidgetItem());
 
         auto item = ui->tableWidget->item(row, column);
         item->setText(combinedText);
-        item->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter); // центрирование по горизонтали и вертикали
+        item->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
         ui->tableWidget->resizeRowsToContents();
-
-        rsc->deleteLater(); // Удаляем диалог после закрытия
     }
+
+    rsc->deleteLater();
 }
 
 bool LessonView::connectToDatabase(QSqlDatabase &db, QString path)
@@ -471,17 +541,18 @@ void LessonView::loadDataToTable(QSqlDatabase &db, QTableWidget *tableWidget)
               // qDebug() << "Значение из базы2:" << originalValue;
 
                QStringList parts = originalValue.split('\n');
-               QString text1, text2, text3;
+               QString text1, text2, text3, text4;
                QString displayText;
-               if (parts.size() == 3)
+               if (parts.size() == 4)
                {
                    // Есть ровно три части — можно их использовать или обработать
                    text1 = parts.at(0);
                    text2 = parts.at(1);
                    text3 = parts.at(2);
+                   text4 = parts.at(3);
 
                    // Пример использования:
-                   displayText = text1 + "\n" + text2 + "\n" + text3;
+                   displayText = text1 + "\n" + text2 + "\n" + text3 + "\n" + text4;
                 }
                else if (parts.size() == 1 && !parts.at(0).isEmpty())
                {
@@ -550,17 +621,31 @@ void LessonView::loadDataToTable(QSqlDatabase &db, QTableWidget *tableWidget)
     int rowCount = ui->tableWidget->rowCount();
 
     // Массив данных для вертикальных заголовков
-    QStringList verticalHeaders = {"8.30-9.15", "9.20-10.05", "10.25-11.10", "11.15-12.00",
-                                   "12.30-13.15", "13.20-14.05", "14.20-15.05", "14.10-15.55",
-                                   "16.05-16.50", "16.55-17.40", "17.50-18.35", "18.40-19.20",
-                                   "19.25-20.15", "20.20-21.10"};
+    QStringList verticalHeaders = {"8.30-10.05\nВерхняя неделя", "8.30-10.05\nНижняя неделя",
+                                   "10.25-12.00\nВерхняя неделя", "10.25-12.00\nНижняя неделя",
+                                   "12.30-14.05\nВерхняя неделя", "12.30-14.05\nНижняя неделя",
+                                   "14.20-15.55\nВерхняя неделя", "14.20-15.55\nНижняя неделя",
+                                   "16.05-17.40\nВерхняя неделя", "16.05-17.40\nНижняя неделя",
+                                   "17.50-19.20\nВерхняя неделя", "17.50-19.20\nНижняя неделя",
+                                   "19.25-21.10\nВерхняя неделя", "19.25-21.10\nНижняя неделя"};
 
     // Убедитесь, что количество элементов в verticalHeaders совпадает с количеством строк
     Q_ASSERT(verticalHeaders.size() >= rowCount);
 
     for (int row = 0; row < rowCount; ++row)
     {
-        ui->tableWidget->setVerticalHeaderItem(row, new QTableWidgetItem(verticalHeaders.at(row)));
+        //ui->tableWidget->setVerticalHeaderItem(row, new QTableWidgetItem(verticalHeaders.at(row)));
+
+        QTableWidgetItem *hi = new QTableWidgetItem(verticalHeaders.at(row));
+        hi->setTextAlignment(Qt::AlignCenter);
+        // Разрешаем перенос строк в тексте (в заголовках QTableWidgetItem это учитывается автоматически)
+        ui->tableWidget->setVerticalHeaderItem(row, hi);
+    }
+
+    // Увеличим высоту строки заголовка (высоту строки таблицы), чтобы поместился многострочный заголовок
+    for (int row = 0; row < rowCount; ++row)
+    {
+        ui->tableWidget->setRowHeight(row, 50); // подберите нужное значение
     }
 
     for (int col = 0; col < tableWidget->columnCount(); ++col)
@@ -580,78 +665,8 @@ void LessonView::loadDataToTable(QSqlDatabase &db, QTableWidget *tableWidget)
 
 bool LessonView::print_lesson(QTableWidget *table, QPrinter *printer)
 {
-
-    // qDebug() << "Кол-во строк:" << table->rowCount();
-    // qDebug() << "Кол-во колонок:" << table->columnCount();
-    // QPrinter printer(QPrinter::HighResolution);
-
-    // // Настройка страницы
-    // QPageLayout pageLayout;
-    // pageLayout.setPageSize(QPageSize(QPageSize::A4));
-    // pageLayout.setOrientation(QPageLayout::Landscape);
-    // // Можно задать поля: margin
-    // pageLayout.setMargins(QMarginsF(10, 10, 10, 10));
-    // printer.setPageLayout(pageLayout);
-
-    // printer.setOutputFormat(QPrinter::PdfFormat);
-    // printer.setOutputFileName("output.pdf");
-
-
-    // // Создаем QPainter для рисования на PDF
-    // QPainter painter(&printer);
-    // if (!painter.isActive())
-    // {
-    //     qWarning() << "Не удалось активировать painter";
-    //     return;
-    // }
-
-    // // Захватываем таблицу как изображение
-    // QPixmap pixmap = table->grab(); // захват всей таблицы
-    // QImage image = pixmap.toImage();
-
-    // // Узнаем размеры страницы
-    // QRectF pageRect = painter.viewport();
-    // qreal pageWidth = pageRect.width();
-    // qreal pageHeight = pageRect.height();
-
-    // // Размер изображения
-    // qreal imageWidth = image.width();
-    // qreal imageHeight = image.height();
-
-    // // Вычисляем масштаб, чтобы таблица поместилась на страницу
-    // qreal scaleX = pageWidth / imageWidth;
-    // qreal scaleY = pageHeight / imageHeight;
-    // qreal scale = qMin(scaleX, scaleY);
-
-    // painter.save();
-    // // Центрируем изображение
-    // qreal xOffset = (pageWidth - imageWidth * scale) / 2;
-    // qreal yOffset = (pageHeight - imageHeight * scale) / 2;
-    // painter.translate(xOffset, yOffset);
-    // painter.scale(scale, scale);
-
-    // // Рисуем изображение
-    // painter.drawImage(0, 0, image);
-    // painter.restore();
-
-    // painter.end();
-
-    //qDebug() << "PDF сохранен в" << filename;
-
-
-
     if (!table || !printer) return false;
 
-    // // --- logical sizes: sum of column widths and row heights + headers ---
-    // int logicalW = table->verticalHeader()->width();
-    // for (int c = 0; c < table->model()->columnCount(); ++c)
-    //     logicalW += table->columnWidth(c);
-
-    // int logicalH = table->horizontalHeader()->height();
-    // for (int r = 0; r < table->model()->rowCount(); ++r)
-    //     logicalH += table->rowHeight(r);
-
-    // --- logical sizes: sum of column widths and row heights + headers + grid lines ---
     int logicalW = table->verticalHeader()->width();
     for (int c = 0; c < table->model()->columnCount(); ++c)
         logicalW += table->columnWidth(c);
@@ -775,6 +790,9 @@ bool LessonView::print_lesson(QTableWidget *table, QPrinter *printer)
         return false;
     }
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    painter.setRenderHints(QPainter::Antialiasing
+                           | QPainter::TextAntialiasing);
+
 
     // compute scale to fit into available paper area (preserve aspect ratio)
     qreal fitScale = qMin(availW / deviceImg.width(), availH / deviceImg.height());

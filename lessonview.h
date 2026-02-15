@@ -30,10 +30,13 @@ public:
 
     bool connectToDatabase(QSqlDatabase &db, QString path);
     void loadDataToTable(QSqlDatabase &db, QTableWidget *tableWidget);
-    void saveLesson();
+    bool saveLesson();
     bool print_lesson(QTableWidget *table, QPrinter *printer);
 
     Ui::LessonView *ui;
+
+protected:
+    void closeEvent(QCloseEvent *event) override;
 
 protected slots:
     void ClickedLeftButton(int row, int column);
@@ -42,11 +45,21 @@ protected slots:
     void aboutLessons();
     void printLessonDialog();
     void notEditTable(bool checked);
+    void onItemChanged();
+
+    void openLesson();
+    void deleteLesson();
 private:
     QSqlDatabase sdb;
     QString dataSourceFilename;
     QTableWidget* table;
     QString str;
      bool editingEnabled = false;
+    bool isModified = false;
+
+private:
+    QWidget *m_parent;
+    QTableWidget *m_table;
+    QString m_str;
 };
 #endif // LESSONVIEW_H

@@ -43,24 +43,24 @@
     <property name="title">
      <string>Файл</string>
     </property>
-    <addaction name="action"/>
-    <addaction name="action_8"/>
-    <addaction name="action_7"/>
-    <addaction name="action_2"/>
+    <addaction name="lessonOpen"/>
+    <addaction name="lessonPrintPreview"/>
+    <addaction name="lessonPrint"/>
+    <addaction name="lessonClose"/>
    </widget>
    <widget class="QMenu" name="menu_2">
     <property name="title">
      <string>Правка</string>
     </property>
     <addaction name="action_3"/>
-    <addaction name="action_6"/>
+    <addaction name="lessonSave"/>
    </widget>
    <widget class="QMenu" name="menu_3">
     <property name="title">
      <string>Справка</string>
     </property>
     <addaction name="action_4"/>
-    <addaction name="action_5"/>
+    <addaction name="lessonAbout"/>
    </widget>
    <addaction name="menu"/>
    <addaction name="menu_2"/>
@@ -77,16 +77,17 @@
    <attribute name="toolBarBreak">
     <bool>false</bool>
    </attribute>
-   <addaction name="action_9"/>
-   <addaction name="action"/>
+   <addaction name="lessonNew"/>
+   <addaction name="lessonOpen"/>
    <addaction name="separator"/>
-   <addaction name="action_6"/>
-   <addaction name="action_8"/>
-   <addaction name="action_7"/>
+   <addaction name="deleteLesson"/>
+   <addaction name="lessonSave"/>
+   <addaction name="lessonPrintPreview"/>
+   <addaction name="lessonPrint"/>
    <addaction name="separator"/>
-   <addaction name="action_10"/>
+   <addaction name="lessonLock"/>
   </widget>
-  <action name="action">
+  <action name="lessonOpen">
    <property name="icon">
     <iconset theme="QIcon::ThemeIcon::DocumentOpen"/>
    </property>
@@ -94,9 +95,9 @@
     <string>Открыть</string>
    </property>
   </action>
-  <action name="action_2">
+  <action name="lessonClose">
    <property name="icon">
-    <iconset theme="QIcon::ThemeIcon::Printer"/>
+    <iconset theme="QIcon::ThemeIcon::ApplicationExit"/>
    </property>
    <property name="text">
     <string>Выход</string>
@@ -112,12 +113,12 @@
     <string>Справка</string>
    </property>
   </action>
-  <action name="action_5">
+  <action name="lessonAbout">
    <property name="text">
     <string>О программе</string>
    </property>
   </action>
-  <action name="action_6">
+  <action name="lessonSave">
    <property name="icon">
     <iconset theme="QIcon::ThemeIcon::DocumentSave"/>
    </property>
@@ -125,7 +126,7 @@
     <string>Сохранить</string>
    </property>
   </action>
-  <action name="action_7">
+  <action name="lessonPrint">
    <property name="icon">
     <iconset theme="QIcon::ThemeIcon::DocumentPrint"/>
    </property>
@@ -133,7 +134,7 @@
     <string>Печать</string>
    </property>
   </action>
-  <action name="action_8">
+  <action name="lessonPrintPreview">
    <property name="icon">
     <iconset theme="QIcon::ThemeIcon::DocumentPrintPreview"/>
    </property>
@@ -141,7 +142,7 @@
     <string>Предосмотр печати</string>
    </property>
   </action>
-  <action name="action_9">
+  <action name="lessonNew">
    <property name="icon">
     <iconset theme="QIcon::ThemeIcon::DocumentNew"/>
    </property>
@@ -152,12 +153,23 @@
     <enum>QAction::MenuRole::NoRole</enum>
    </property>
   </action>
-  <action name="action_10">
+  <action name="lessonLock">
    <property name="icon">
     <iconset theme="QIcon::ThemeIcon::MediaPlaybackPause"/>
    </property>
    <property name="text">
     <string>Запрет на редактирование таблицы</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="deleteLesson">
+   <property name="icon">
+    <iconset theme="QIcon::ThemeIcon::EditDelete"/>
+   </property>
+   <property name="text">
+    <string>Удаление данных</string>
    </property>
    <property name="menuRole">
     <enum>QAction::MenuRole::NoRole</enum>

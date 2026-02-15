@@ -13,12 +13,16 @@ SOURCES += \
     add_lesson.cpp \
     main.cpp \
     lessonview.cpp \
+    mergedheader.cpp \
+    mergedhorizontalheader.cpp \
     start_lesson.cpp
 
 HEADERS += \
     aboutlesson.h \
     add_lesson.h \
     lessonview.h \
+    mergedheader.h \
+    mergedhorizontalheader.h \
     start_lesson.h
 
 FORMS += \

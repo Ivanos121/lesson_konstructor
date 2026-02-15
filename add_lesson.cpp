@@ -7,6 +7,24 @@ Add_lesson::Add_lesson(QWidget *parent)
 {
     ui->setupUi(this);
     connect(ui->applyButton, &QPushButton::clicked, this, &Add_lesson::onAccept);
+    connect(ui->closeButton, &QPushButton::clicked, this, &Add_lesson::closeDialog);
+
+    // Отключаем OK по умолчанию
+    ui->applyButton->setEnabled(false);
+
+    QStringList items = {"Лекция", "Лабораторное занятие", "Практическое занятие",
+    "Курсовое проектирование по КР", "Консультация по ДР"};
+    ui->comboBox->addItems(items);
+
+    QStringList items2 = {"1-я подгруппа", "2-я подгруппа"};
+    ui->comboBox_2->addItems(items2);
+
+    // Подключаем проверки текста
+    connect(ui->subject, &QLineEdit::textChanged, this, &Add_lesson::updateOkButtonState);
+    connect(ui->student_group, &QLineEdit::textChanged, this, &Add_lesson::updateOkButtonState);
+    connect(ui->classroom, &QLineEdit::textChanged, this, &Add_lesson::updateOkButtonState);
+
+
 }
 
 Add_lesson::~Add_lesson()
@@ -15,24 +33,26 @@ Add_lesson::~Add_lesson()
 
 }
 
-void Add_lesson::on_pushButton_2_clicked()
+void Add_lesson::updateOkButtonState()
 {
-    close();
-}
-
-
-void Add_lesson::on_pushButton_clicked()
-{
-    close();
+    bool allNotEmpty = !ui->subject->text().trimmed().isEmpty()
+    && !ui->student_group->text().trimmed().isEmpty()
+        && !ui->classroom->text().trimmed().isEmpty();
+    ui->applyButton->setEnabled(allNotEmpty);
 }
 
 void Add_lesson::onAccept()
 {
-    text11 = ui->lineEdit->text();
-    text22 = ui->lineEdit_2->text();
-    text33 = ui->lineEdit_3->text();
+    text11 = ui->subject->text();
+    text22 = ui->student_group->text();
+    text33 = ui->classroom->text();
     text44 = ui->comboBox->currentText();
 
     accept(); // Закрывает диалог
+}
+
+void Add_lesson::closeDialog()
+{
+    close();
 }
 

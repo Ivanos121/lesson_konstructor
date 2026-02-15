@@ -21,10 +21,9 @@ public:
     QString text33;
     QString text44;
 
-private slots:
-    void on_pushButton_2_clicked();
-
-    void on_pushButton_clicked();
+protected slots:
+    void closeDialog();
+    void updateOkButtonState();
 
 private slots:
     void onAccept();
