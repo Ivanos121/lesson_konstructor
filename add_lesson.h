@@ -20,16 +20,19 @@ public:
     QString text22;
     QString text33;
     QString text44;
+    Ui::Add_lesson *ui;
 
 protected slots:
     void closeDialog();
     void updateOkButtonState();
 
+signals:
+    void selectionConfirmed(const QString &text);
+
 private slots:
     void onAccept();
 
 private:
-    Ui::Add_lesson *ui;
 };
 
 #endif // ADD_LESSON_H

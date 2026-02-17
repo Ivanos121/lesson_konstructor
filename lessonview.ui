@@ -81,6 +81,7 @@
    <addaction name="lessonOpen"/>
    <addaction name="separator"/>
    <addaction name="deleteLesson"/>
+   <addaction name="medgeLesson"/>
    <addaction name="lessonSave"/>
    <addaction name="lessonPrintPreview"/>
    <addaction name="lessonPrint"/>
@@ -170,6 +171,17 @@
    </property>
    <property name="text">
     <string>Удаление данных</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="medgeLesson">
+   <property name="icon">
+    <iconset theme="QIcon::ThemeIcon::ViewRefresh"/>
+   </property>
+   <property name="text">
+    <string>Разбить ячейки</string>
    </property>
    <property name="menuRole">
     <enum>QAction::MenuRole::NoRole</enum>

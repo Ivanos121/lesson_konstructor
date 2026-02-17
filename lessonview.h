@@ -35,6 +35,7 @@ public:
 
     Ui::LessonView *ui;
 
+    void vertikalHeader();
 protected:
     void closeEvent(QCloseEvent *event) override;
 
@@ -49,6 +50,8 @@ protected slots:
 
     void openLesson();
     void deleteLesson();
+    void medgeLesson();
+    void loadAndAutoMergeFromDb(QSqlDatabase &db, QTableWidget *tableWidget, const QString &controlString);
 private:
     QSqlDatabase sdb;
     QString dataSourceFilename;
@@ -56,10 +59,14 @@ private:
     QString str;
      bool editingEnabled = false;
     bool isModified = false;
+    QSet<QPair<int,int>> mergedLefts_;
+    QMap<QPair<int,int>, QString> savedCells_;
 
 private:
     QWidget *m_parent;
     QTableWidget *m_table;
     QString m_str;
+    QString controlString;
+
 };
 #endif // LESSONVIEW_H

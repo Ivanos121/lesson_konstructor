@@ -115,8 +115,8 @@ LessonView::LessonView(QWidget *parent)
     table->setHorizontalHeader(hdr);
 
     // если хотите заменить вертикальный заголовок (строки)
-    MergedHorizontalHeader *vh = new MergedHorizontalHeader(Qt::Vertical, table);
-    table->setVerticalHeader(vh);
+    // MergedHorizontalHeader *vh = new MergedHorizontalHeader(Qt::Vertical, table);
+    // table->setVerticalHeader(vh);
 
     // Установим ширины секций, чтобы пример выглядел аккуратно
     for (int c = 0; c < 4; ++c)
@@ -140,6 +140,7 @@ LessonView::LessonView(QWidget *parent)
     connect(ui->lessonOpen, &QAction::triggered, this, &LessonView::openLesson);
     connect(ui->lessonClose, &QAction::triggered, this, &LessonView::close);
     connect(ui->deleteLesson, &QAction::triggered, this, &LessonView::deleteLesson);
+    connect(ui->medgeLesson, &QAction::triggered, this, &LessonView::medgeLesson);
 
     ui->tableWidget->setEditTriggers(QAbstractItemView::NoEditTriggers);
     setWindowTitle("Программатор нагрузки");
@@ -148,6 +149,169 @@ LessonView::LessonView(QWidget *parent)
 LessonView::~LessonView()
 {
     delete ui;
+}
+
+void LessonView::loadAndAutoMergeFromDb(QSqlDatabase &db, QTableWidget *tableWidget, const QString &controlString)
+{
+    if (!db.isOpen()) {
+        qDebug() << "Database is not open.";
+        return;
+    }
+
+    QSqlQuery query(db);
+    if (!query.exec("SELECT * FROM Lessons")) {
+        qDebug() << "Error executing query:" << query.lastError().text();
+        return;
+    }
+
+    tableWidget->clear();
+    int columnCount = query.record().count();
+    tableWidget->setColumnCount(columnCount);
+
+    QStringList headers;
+    for (int i = 0; i < columnCount; ++i)
+        headers << query.record().fieldName(i);
+    tableWidget->setHorizontalHeaderLabels(headers);
+    tableWidget->horizontalHeader()->setVisible(true);
+    tableWidget->verticalHeader()->setVisible(true);
+
+    tableWidget->setRowCount(0);
+    int currentRow = 0;
+
+    // Очищаем предыдущие отметки объединений
+    mergedLefts_.clear();
+
+    while (query.next()) {
+        tableWidget->insertRow(currentRow);
+
+        for (int col = 0; col < columnCount; ++col) {
+            QString raw = query.value(col).toString();
+            raw.replace("\\n", "\n");
+            QStringList parts = raw.split('\n');
+
+            // собрать непустые части через индексный цикл (чтобы избежать предупреждений clazy)
+            QStringList nonEmptyParts;
+            for (int i = 0; i < parts.size(); ++i) {
+                const QString &p = parts.at(i);
+                if (!p.isEmpty())
+                    nonEmptyParts << p;
+            }
+
+            QString displayText = nonEmptyParts.isEmpty() ? QString() : nonEmptyParts.join("\n");
+
+            // Создаём/получаем текущий элемент
+            QTableWidgetItem *item = tableWidget->item(currentRow, col);
+            if (!item) {
+                item = new QTableWidgetItem();
+                tableWidget->setItem(currentRow, col, item);
+            }
+
+            // Отладка: покажем содержимое и количество частей
+            qDebug() << "Row" << currentRow << "Col" << col << "partsCount" << nonEmptyParts.size() << "parts" << nonEmptyParts;
+
+            // Поведение в зависимости от количества частей
+            if (nonEmptyParts.size() == 5) {
+                // Сравнение контрольной строки — trimmed и нечувствительно к регистру (опционально)
+                if (nonEmptyParts.at(4).trimmed().compare(controlString.trimmed(), Qt::CaseInsensitive) == 0) {
+                    // Берём первые 4 части
+                    QString mergedText = nonEmptyParts.mid(0, 4).join("\n");
+
+                    if (col + 1 < tableWidget->columnCount()) {
+                        // Создаём правый элемент, если нужно
+                        if (!tableWidget->item(currentRow, col + 1)) {
+                            tableWidget->setItem(currentRow, col + 1, new QTableWidgetItem());
+                        }
+
+                        // Устанавливаем span до записи текста правой ячейки
+                        tableWidget->setSpan(currentRow, col, 1, 2);
+                        mergedLefts_.insert(qMakePair(currentRow, col));
+
+                        // Устанавливаем текст в левую (объединённую) ячейку
+                        tableWidget->item(currentRow, col)->setText(mergedText);
+                        tableWidget->item(currentRow, col)->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+
+                        // Очищаем правую видимую ячейку, чтобы не дублировать
+                        tableWidget->item(currentRow, col + 1)->setText("");
+                        tableWidget->item(currentRow, col + 1)->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+
+                        qDebug() << "Merged horizontally at" << currentRow << col;
+                    } else {
+                        // Нет правой колонки — просто пишем mergedText в текущую
+                        tableWidget->item(currentRow, col)->setText(mergedText);
+                        tableWidget->item(currentRow, col)->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+                        qDebug() << "No right column to merge; wrote mergedText at" << currentRow << col;
+                    }
+                } else {
+                    // Пятая часть не совпала — записываем всё содержимое
+                    tableWidget->item(currentRow, col)->setText(displayText);
+                    tableWidget->item(currentRow, col)->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+                }
+            } else if (nonEmptyParts.size() == 4) {
+                // Просто запись без объединения
+                tableWidget->item(currentRow, col)->setText(displayText);
+                tableWidget->item(currentRow, col)->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+            } else {
+                // Другие случаи — запись как есть
+                tableWidget->item(currentRow, col)->setText(displayText);
+                tableWidget->item(currentRow, col)->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+            }
+        }
+
+        tableWidget->setVerticalHeaderItem(currentRow, new QTableWidgetItem(QString::number(currentRow + 1)));
+        ++currentRow;
+    }
+
+    tableWidget->resizeRowsToContents();
+    tableWidget->viewport()->update();
+
+    vertikalHeader();
+}
+
+void LessonView::medgeLesson()
+{
+    if (!ui->tableWidget) return;
+    int row = ui->tableWidget->currentRow();
+    int col = ui->tableWidget->currentColumn();
+    if (row < 0 || col < 0) return;
+
+    int anchorRow = row, anchorCol = col;
+    bool found = false;
+    for (int r = 0; r <= row && !found; ++r) {
+        for (int c = 0; c <= col; ++c) {
+            int rs = ui->tableWidget->rowSpan(r, c);
+            int cs = ui->tableWidget->columnSpan(r, c);
+            if ((rs > 1 || cs > 1) && r <= row && row < r + rs && c <= col && col < c + cs) {
+                anchorRow = r; anchorCol = c; found = true; break;
+            }
+        }
+    }
+    // если не найден объединённый anchor, но возможно сам (row,col) — проверим
+    int rspan = ui->tableWidget->rowSpan(anchorRow, anchorCol);
+    int cspan = ui->tableWidget->columnSpan(anchorRow, anchorCol);
+    if (rspan == 1 && cspan == 1) return; // ничего не разделять
+
+    // снимем span
+    ui->tableWidget->setSpan(anchorRow, anchorCol, 1, 1);
+
+    // восстановим дочерние ячейки
+    for (int dr = 0; dr < rspan; ++dr) {
+        for (int dc = 0; dc < cspan; ++dc) {
+            int r = anchorRow + dr;
+            int c = anchorCol + dc;
+            if (r == anchorRow && c == anchorCol) continue;
+            if (!ui->tableWidget->item(r, c)) {
+                QPair<int,int> key(r, c);
+                if (savedCells_.contains(key)) {
+                    ui->tableWidget->setItem(r, c, new QTableWidgetItem(savedCells_.value(key)));
+                    savedCells_.remove(key);
+                } else {
+                    ui->tableWidget->setItem(r, c, new QTableWidgetItem(QString()));
+                }
+            }
+        }
+    }
+    mergedLefts_.remove(qMakePair(anchorRow, anchorCol));
+    ui->tableWidget->resizeRowsToContents();
 }
 
 void LessonView::deleteLesson()
@@ -163,11 +327,13 @@ void LessonView::deleteLesson()
 
 void LessonView::openLesson()
 {
-    QString filter = tr("Текстовые файлы (*.txt);;Все файлы (*)");
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Открыть файл"), QString(), filter);
-    if (fileName.isEmpty()) return;
+    QSqlDatabase db;
+    controlString = "up_week";
 
-   // openFile(fileName);
+    if (connectToDatabase(db, "/home/elf/lesson/LessonView/lesson_base.db"))
+    {
+        loadAndAutoMergeFromDb(db, ui->tableWidget, controlString);
+    }
 }
 
 void LessonView::closeEvent (QCloseEvent *event)
@@ -213,14 +379,33 @@ void LessonView::onItemChanged()
 void LessonView::notEditTable(bool checked)
 {
     editingEnabled = checked; // Устанавливаем состояние редактирования на основе состояния кнопки
-    ui->tableWidget->setEditTriggers(editingEnabled ?
-                                         QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed :
-                                         QAbstractItemView::NoEditTriggers);
-
-    if (editingEnabled)
-    {
-        table->clearSelection(); // Снимаем выделение
+    if (editingEnabled) {
+        // Разрешаем редактирование по двойному щелчку и по клавише F2/Enter
+        ui->tableWidget->setEditTriggers(
+            QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed
+            );
+        // Можно разрешить также SelectedClicked и т.п. при необходимости
+    } else {
+        // Полностью отключаем встроенное редактирование
+        ui->tableWidget->setEditTriggers(QAbstractItemView::NoEditTriggers);
     }
+
+    // Снимаем выделение, чтобы не вызывать диалог по selectionChanged
+    ui->tableWidget->clearSelection();
+
+    // Дополнительно: запретить флаг редактирования для всех существующих элементов
+    for (int r = 0; r < ui->tableWidget->rowCount(); ++r) {
+        for (int c = 0; c < ui->tableWidget->columnCount(); ++c) {
+            QTableWidgetItem *it = ui->tableWidget->item(r, c);
+            if (it)
+                it->setFlags( it->flags() & ~Qt::ItemIsEditable );
+        }
+    }
+
+    // Если у вас есть собственный слот на двойной клик или cellClicked, который вызывает диалог,
+    // убедитесь что он проверяет editingEnabled в начале и просто возвращает, если редактирование запрещено.
+    // Пример в начале слота:
+    // if (!editingEnabled) return;
 }
 
 void LessonView::printLessonDialog()
@@ -409,38 +594,6 @@ void LessonView::newLesson()
 
 void LessonView::ClickedLeftButton(int row, int column)
 {
-    // if (editingEnabled)
-    // {
-    //     return; // Преждевременный выход, если редактирование запрещено
-    // }
-    // else
-    // {
-    //     QScreen *screen = QGuiApplication::primaryScreen();
-    //     rsc = new Add_lesson(this);
-    //     rsc->setWindowTitle("Введите данные для ячейки");
-    //     rsc->setGeometry(
-    //         QStyle::alignedRect(
-    //             Qt::LeftToRight,
-    //             Qt::AlignCenter,
-    //             rsc->size(),
-    //             screen->geometry()));
-
-    //     rsc->exec();
-
-    //     QString combinedText = rsc->text11 + "\n" + rsc->text22 + "\n" + rsc->text33 + "\n" + rsc->text44;
-    //     ui->tableWidget->item(row, column)->setText(combinedText);
-
-    //     // Проверяем существование ячейки
-    //     if (!ui->tableWidget->item(row, column))
-    //         ui->tableWidget->setItem(row, column, new QTableWidgetItem());
-
-    //     auto item = ui->tableWidget->item(row, column);
-    //     item->setText(combinedText);
-    //     item->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter); // центрирование по горизонтали и вертикали
-    //     ui->tableWidget->resizeRowsToContents();
-
-    //     rsc->deleteLater(); // Удаляем диалог после закрытия
-    //}
     if (editingEnabled)
         return;
 
@@ -454,19 +607,63 @@ void LessonView::ClickedLeftButton(int row, int column)
             rsc->size(),
             screen->geometry()));
 
-    // Выполняем диалог и проверяем результат
-    if (rsc->exec() == QDialog::Accepted) {
-        QString combinedText = rsc->text11 + "\n" + rsc->text22 + "\n" + rsc->text33 + "\n" + rsc->text44;
-
-        if (!ui->tableWidget->item(row, column))
-            ui->tableWidget->setItem(row, column, new QTableWidgetItem());
-
-        auto item = ui->tableWidget->item(row, column);
-        item->setText(combinedText);
-        item->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
-        ui->tableWidget->resizeRowsToContents();
+    QPair<int,int> key(row, column);
+    // Если уже объединено — при клике разъединяем и выходим
+    if (mergedLefts_.contains(key))
+    {
+        ui->tableWidget->setSpan(row, column, 1, 1);
+        if (column + 1 < ui->tableWidget->columnCount() && !ui->tableWidget->item(row, column+1))
+            ui->tableWidget->setItem(row, column+1, new QTableWidgetItem(""));
+        mergedLefts_.remove(key);
+        rsc->deleteLater();
+        return;
     }
 
+    // Выполняем диалог один раз
+    if (rsc->exec() != QDialog::Accepted)
+    {
+        rsc->deleteLater();
+        return;
+    }
+
+    // Диалог принят — читаем данные один раз
+    QString comboChoice = rsc->ui->comboBox_2->currentText(); // замените при необходимости
+    QString combinedText = rsc->text11 + "\n" + rsc->text22 + "\n" + rsc->text33 + "\n" + rsc->text44;
+
+    // Всегда сначала записываем текст в текущую (левой) ячейку
+    if (!ui->tableWidget->item(row, column))
+        ui->tableWidget->setItem(row, column, new QTableWidgetItem());
+    ui->tableWidget->item(row, column)->setText(combinedText);
+    ui->tableWidget->item(row, column)->setTextAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+
+    // Действия в зависимости от выбора комбобокса
+    if (comboChoice == "1-я подгруппа")
+    {
+        // Горизонтальное объединение вправо
+        if (column + 1 < ui->tableWidget->columnCount())
+        {
+            // Опционально: сохранить правую ячейку перед объединением, если понадобится восстановление
+            // QString rightText;
+            // if (ui->tableWidget->item(row, column+1)) rightText = ui->tableWidget->item(row, column+1)->text();
+            ui->tableWidget->setSpan(row, column, 1, 2);
+            mergedLefts_.insert(key);
+        }
+    }
+    else if (comboChoice == "2-я подгруппа")
+    {
+        // Вертикальное объединение вниз
+        if (row + 1 < ui->tableWidget->rowCount())
+        {
+            ui->tableWidget->setSpan(row, column, 2, 1);
+            mergedLefts_.insert(key);
+        }
+    }
+    else
+    {
+        // другие варианты — только запись текста (уже выполнена)
+    }
+
+    ui->tableWidget->resizeRowsToContents();
     rsc->deleteLater();
 }
 
@@ -489,13 +686,15 @@ void LessonView::loadDataToTable(QSqlDatabase &db, QTableWidget *tableWidget)
 
     //QSqlQuery query(db);
 
-    if (!db.isOpen()) {
+    if (!db.isOpen())
+    {
         qDebug() << "Database is not open.";
         return; // Exit if the database is not open
     }
 
     QSqlQuery query(db);
-    if (!query.exec("SELECT * FROM Lessons")) {
+    if (!query.exec("SELECT * FROM Lessons"))
+    {
         qDebug() << "Error executing query:" << query.lastError().text();
         return; // Exit on query failure
     }
@@ -515,7 +714,8 @@ void LessonView::loadDataToTable(QSqlDatabase &db, QTableWidget *tableWidget)
 
         // Получаем имена полей из базы для заголовков
         QStringList headers;
-        for (int i = 0; i < columnCount; ++i) {
+        for (int i = 0; i < columnCount; ++i)
+        {
             headers << query.record().fieldName(i);
         }
         // Устанавливаем горизонтальные заголовки
@@ -541,7 +741,7 @@ void LessonView::loadDataToTable(QSqlDatabase &db, QTableWidget *tableWidget)
               // qDebug() << "Значение из базы2:" << originalValue;
 
                QStringList parts = originalValue.split('\n');
-               QString text1, text2, text3, text4;
+               QString text1, text2, text3, text4, text5;
                QString displayText;
                if (parts.size() == 4)
                {
@@ -661,6 +861,53 @@ void LessonView::loadDataToTable(QSqlDatabase &db, QTableWidget *tableWidget)
     ui->tableWidget->resizeRowsToContents();
     ui->tableWidget->viewport()->update(); // попробуйте добавить
 
+}
+
+void LessonView::vertikalHeader()
+{
+    // Предположим, у вас есть таблица с N строками
+    int rowCount = ui->tableWidget->rowCount();
+
+    // Массив данных для вертикальных заголовков
+    QStringList verticalHeaders = {"8.30-10.05\nВерхняя неделя", "8.30-10.05\nНижняя неделя",
+                                   "10.25-12.00\nВерхняя неделя", "10.25-12.00\nНижняя неделя",
+                                   "12.30-14.05\nВерхняя неделя", "12.30-14.05\nНижняя неделя",
+                                   "14.20-15.55\nВерхняя неделя", "14.20-15.55\nНижняя неделя",
+                                   "16.05-17.40\nВерхняя неделя", "16.05-17.40\nНижняя неделя",
+                                   "17.50-19.20\nВерхняя неделя", "17.50-19.20\nНижняя неделя",
+                                   "19.25-21.10\nВерхняя неделя", "19.25-21.10\nНижняя неделя"};
+
+    // Убедитесь, что количество элементов в verticalHeaders совпадает с количеством строк
+    Q_ASSERT(verticalHeaders.size() >= rowCount);
+
+    for (int row = 0; row < rowCount; ++row)
+    {
+        //ui->tableWidget->setVerticalHeaderItem(row, new QTableWidgetItem(verticalHeaders.at(row)));
+
+        QTableWidgetItem *hi = new QTableWidgetItem(verticalHeaders.at(row));
+        hi->setTextAlignment(Qt::AlignCenter);
+        // Разрешаем перенос строк в тексте (в заголовках QTableWidgetItem это учитывается автоматически)
+        ui->tableWidget->setVerticalHeaderItem(row, hi);
+    }
+
+    // Увеличим высоту строки заголовка (высоту строки таблицы), чтобы поместился многострочный заголовок
+    for (int row = 0; row < rowCount; ++row)
+    {
+        ui->tableWidget->setRowHeight(row, 50); // подберите нужное значение
+    }
+
+    for (int col = 0; col < ui->tableWidget->columnCount(); ++col)
+    {
+        QString headerText = ui->tableWidget->horizontalHeaderItem(col)->text();
+        if (headerText == "id")
+        { // замените на точное имя заголовка
+            ui->tableWidget->hideColumn(col);
+            break;
+        }
+    }
+
+    ui->tableWidget->resizeRowsToContents();
+    ui->tableWidget->viewport()->update(); // попробуйте добавить
 }
 
 bool LessonView::print_lesson(QTableWidget *table, QPrinter *printer)

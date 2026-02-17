@@ -19,6 +19,9 @@ Add_lesson::Add_lesson(QWidget *parent)
     QStringList items2 = {"1-я подгруппа", "2-я подгруппа"};
     ui->comboBox_2->addItems(items2);
 
+    QStringList items3 = {"Верхняя неделя", "Нижняя неделя"};
+    ui->comboBox_3->addItems(items3);
+
     // Подключаем проверки текста
     connect(ui->subject, &QLineEdit::textChanged, this, &Add_lesson::updateOkButtonState);
     connect(ui->student_group, &QLineEdit::textChanged, this, &Add_lesson::updateOkButtonState);
@@ -47,6 +50,9 @@ void Add_lesson::onAccept()
     text22 = ui->student_group->text();
     text33 = ui->classroom->text();
     text44 = ui->comboBox->currentText();
+
+    QString txt = ui->comboBox_2->currentText();
+    emit selectionConfirmed(txt); // уведомляем слушателей
 
     accept(); // Закрывает диалог
 }
